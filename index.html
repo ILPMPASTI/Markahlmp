@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penilaian Guru PASTI</title>
+<style>
+:root{--hijau:#1b6b3a;--hijau-gelap:#124d29;--hijau-muda:#e8f3ec;--garis:#cfe0d5;--teks:#1d2b22;--ralat:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--hijau-muda);color:var(--teks);line-height:1.5}
+header{background:var(--hijau);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+header h1{font-size:1.1rem;margin:0}
+header span{font-size:.9rem;opacity:.9}
+main{max-width:640px;margin:24px auto;padding:0 16px}
+.kad{background:#fff;border:1px solid var(--garis);border-radius:10px;padding:20px;margin-bottom:16px}
+.kad h2{margin:0 0 12px;font-size:1.05rem;color:var(--hijau-gelap)}
+label{display:block;font-weight:600;font-size:.9rem;margin:12px 0 4px}
+input,textarea{width:100%;padding:10px;border:1px solid #9db8a6;border-radius:6px;font:inherit}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid #8fd0a8;outline-offset:1px}
+button{background:var(--hijau);color:#fff;border:0;border-radius:6px;padding:11px 18px;font:inherit;font-weight:600;cursor:pointer;margin-top:16px}
+button:hover{background:var(--hijau-gelap)}
+button:disabled{opacity:.6;cursor:wait}
+button.sekunder{background:transparent;border:1px solid #fff;margin:0;padding:6px 12px}
+.mesej{margin-top:12px;padding:10px 12px;border-radius:6px;font-size:.95rem}
+.mesej.ralat{background:#fdeceb;color:var(--ralat)}
+.mesej.ok{background:#e3f4e8;color:var(--hijau-gelap)}
+.sembunyi{display:none}
+dl{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0}
+dt{font-weight:600;color:var(--hijau-gelap)}dd{margin:0}
+.markah{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--garis)}
+.markah label{margin:0;font-weight:500}
+.markah input{width:80px;text-align:center}
+.jumlah{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;padding:12px 0;color:var(--hijau-gelap)}
+@media(max-width:480px){dl{grid-template-columns:1fr}dt{margin-top:6px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Penilaian Guru PASTI</h1>
+  <div><span id="namaNegeri"></span> <button id="btnKeluar" class="sekunder sembunyi">Log keluar</button></div>
+</header>
+<main>
+  <!-- LOG MASUK -->
+  <section id="halamanLogin" class="kad">
+    <h2>Log masuk</h2>
+    <label for="kod">Kod Negeri</label>
+    <input id="kod" autocomplete="username">
+    <label for="kata">Kata Laluan</label>
+    <input id="kata" type="password" autocomplete="current-password">
+    <button id="btnLogin">Log masuk</button>
+    <div id="mesejLogin" class="mesej ralat sembunyi"></div>
+  </section>
+
+  <!-- HALAMAN UTAMA -->
+  <div id="halamanUtama" class="sembunyi">
+    <section class="kad">
+      <h2>Cari rekod guru</h2>
+      <label for="ic">No. Kad Pengenalan</label>
+      <input id="ic" inputmode="numeric" placeholder="cth: 900101-14-5678">
+      <button id="btnCari">Cari Rekod</button>
+      <div id="mesejCari" class="mesej ralat sembunyi"></div>
+      <dl id="maklumat" class="sembunyi" style="margin-top:16px">
+        <dt>Nama</dt><dd id="mNama"></dd>
+        <dt>No. IC</dt><dd id="mIC"></dd>
+        <dt>Negeri</dt><dd id="mNegeri"></dd>
+        <dt>Kawasan</dt><dd id="mKawasan"></dd>
+      </dl>
+    </section>
+
+    <section id="borang" class="kad sembunyi">
+      <h2>Borang penilaian</h2>
+      <div id="senaraiMarkah"></div>
+      <div class="jumlah"><span>Jumlah markah</span><span><span id="jumlah">0</span> / 100</span></div>
+      <label for="ulasan">Ulasan</label>
+      <textarea id="ulasan" rows="3"></textarea>
+      <label for="penilai">Nama penilai</label>
+      <input id="penilai">
+      <label for="kawasan">Kawasan</label>
+      <input id="kawasan">
+      <label for="namaPasti">Nama PASTI</label>
+      <input id="namaPasti">
+      <button id="btnSimpan">Simpan Penilaian</button>
+      <div id="mesejSimpan" class="mesej sembunyi"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+// ====== TETAPAN: tampal URL Web App Apps Script anda di bawah ======
+const API_URL = "https://script.google.com/macros/s/AKfycbzByS__daSojd8SE2FqSYqalXT63wX9mugKbiI0GnCJrCfam-atbHlG_8JNqUUdL2K-9g/exec";
+
+const KATEGORI = [
+  { nama: "Pencerapan Pengajaran Pembelajaran", maks: 80 },
+  { nama: "Kokurikulum", maks: 10 },
+  { nama: "Dokumentasi Fail", maks: 10 }
+];
+const $ = id => document.getElementById(id);
+let sesi = JSON.parse(sessionStorage.getItem("sesi") || "null");
+let guruSemasa = null;
+
+async function panggil(data) {
+  // Tiada header Content-Type supaya pelayar tidak perlukan preflight CORS
+  const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(data) });
+  return res.json();
+}
+function tunjuk(el, teks, jenis) {
+  el.textContent = teks;
+  el.className = "mesej " + jenis;
+}
+function sembunyi(...els) { els.forEach(e => e.classList.add("sembunyi")); }
+function papar(...els) { els.forEach(e => e.classList.remove("sembunyi")); }
+
+function masukUtama() {
+  sembunyi($("halamanLogin"));
+  papar($("halamanUtama"), $("btnKeluar"));
+  $("namaNegeri").textContent = "Negeri: " + sesi.negeri;
+}
+
+$("btnLogin").onclick = async () => {
+  const kod = $("kod").value.trim(), kata = $("kata").value;
+  if (!kod || !kata) return tunjuk($("mesejLogin"), "Sila isi Kod Negeri dan Kata Laluan.", "ralat");
+  $("btnLogin").disabled = true;
+  try {
+    const r = await panggil({ aksi: "login", kod, kata });
+    if (r.ok) { sesi = { kod, kata, negeri: r.negeri }; sessionStorage.setItem("sesi", JSON.stringify(sesi)); masukUtama(); }
+    else tunjuk($("mesejLogin"), r.mesej, "ralat");
+  } catch (e) { tunjuk($("mesejLogin"), "Tidak dapat berhubung dengan pelayan. Semak URL Web App dan sambungan internet.", "ralat"); }
+  $("btnLogin").disabled = false;
+};
+
+$("btnKeluar").onclick = () => { sessionStorage.removeItem("sesi"); location.reload(); };
+
+$("btnCari").onclick = async () => {
+  sembunyi($("maklumat"), $("borang"), $("mesejCari"));
+  const ic = $("ic").value.trim();
+  if (!ic) return tunjuk($("mesejCari"), "Sila masukkan No. Kad Pengenalan.", "ralat");
+  $("btnCari").disabled = true;
+  try {
+    const r = await panggil({ aksi: "cari", kod: sesi.kod, kata: sesi.kata, ic });
+    if (r.ok) {
+      guruSemasa = r.guru;
+      $("mNama").textContent = r.guru.nama; $("mIC").textContent = r.guru.ic;
+      $("mNegeri").textContent = r.guru.negeri; $("mKawasan").textContent = r.guru.kawasan;
+      papar($("maklumat"), $("borang")); sembunyi($("mesejSimpan"));
+      mulaBorang();
+    } else tunjuk($("mesejCari"), r.mesej, "ralat");
+  } catch (e) { tunjuk($("mesejCari"), "Ralat sambungan. Cuba lagi.", "ralat"); }
+  $("btnCari").disabled = false;
+};
+
+function mulaBorang() {
+  $("senaraiMarkah").innerHTML = "";
+  KATEGORI.forEach((k, i) => {
+    const d = document.createElement("div"); d.className = "markah";
+    const l = document.createElement("label"); l.textContent = k.nama + " (0-" + k.maks + ")"; l.htmlFor = "m" + i;
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.min = 0; inp.max = k.maks; inp.value = 0; inp.id = "m" + i;
+    inp.oninput = kiraJumlah;
+    d.append(l, inp); $("senaraiMarkah").appendChild(d);
+  });
+  $("ulasan").value = ""; $("kawasan").value = guruSemasa.kawasan || ""; $("namaPasti").value = ""; kiraJumlah();
+}
+function nilai(i) { return Number($("m" + i).value) || 0; }
+function kiraJumlah() { $("jumlah").textContent = KATEGORI.reduce((a, _, i) => a + nilai(i), 0); }
+
+$("btnSimpan").onclick = async () => {
+  const markah = KATEGORI.map((_, i) => nilai(i));
+  if (markah.some((m, i) => m < 0 || m > KATEGORI[i].maks)) return tunjuk($("mesejSimpan"), "Markah melebihi had. Had: 80, 10 dan 10.", "ralat");
+  const penilai = $("penilai").value.trim();
+  if (!penilai) return tunjuk($("mesejSimpan"), "Sila isi nama penilai.", "ralat");
+  const kawasan = $("kawasan").value.trim(), namaPasti = $("namaPasti").value.trim();
+  if (!kawasan || !namaPasti) return tunjuk($("mesejSimpan"), "Sila isi Kawasan dan Nama PASTI.", "ralat");
+  $("btnSimpan").disabled = true;
+  try {
+    const r = await panggil({ aksi: "simpan", kod: sesi.kod, kata: sesi.kata, ic: guruSemasa.ic, markah, ulasan: $("ulasan").value, penilai, kawasan, namaPasti });
+    if (r.ok) tunjuk($("mesejSimpan"), "Penilaian berjaya disimpan. Jumlah markah: " + r.jumlah + " / 100.", "ok");
+    else tunjuk($("mesejSimpan"), r.mesej, "ralat");
+  } catch (e) { tunjuk($("mesejSimpan"), "Ralat sambungan. Penilaian belum disimpan.", "ralat"); }
+  $("btnSimpan").disabled = false;
+};
+
+[["kata","btnLogin"],["kod","btnLogin"],["ic","btnCari"]].forEach(([i, b]) =>
+  $(i).addEventListener("keydown", e => { if (e.key === "Enter") $(b).click(); }));
+
+if (sesi) masukUtama();
+</script>
+</body>
+</html>
